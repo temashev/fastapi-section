@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  redis_cache:
+    image: redis:7-alpine
+    container_name: spimex_redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  redis_commander:
+    image: rediscommander/redis-commander:latest
+    container_name: spimex_redis_commander
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis_cache:6379
+    ports:
+      - '8081:8081'
+    depends_on:
+      - redis_cache
+
+  db:
+    image: postgres:16-alpine
+    container_name: spimex_postgres_db
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: spimex_fastapi_app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASS}@spimex_postgres_db:5432/spimex_async
+      - REDIS_URL=redis://redis_cache:6379/0
+    depends_on:
+      - db
+      - redis_cache
+
+volumes:
+  redis_data:
+  postgres_data:
